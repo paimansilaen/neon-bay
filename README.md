@@ -1,7 +1,11 @@
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/paimansilaen/neon-bay/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/paimansilaen/neon-bay/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
 # NEON BAY — an open-world crime game
 
 An original top-down open-world crime game built for the make.fun **"Make GTA 6"**
-bounty (`gta6-01`). Playable in a desktop browser from static files, no network
+bounty ([gta6-01](https://make.fun/bounty/gta6-01)). Playable in a desktop browser from static files, no network
 requests, keyboard + mouse. **Every name, character, place, story beat, piece of
 art and sound is original work created for this entry — nothing comes from
 Rockstar Games or any commercial game.**
