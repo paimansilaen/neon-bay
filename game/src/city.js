@@ -1,133 +1,183 @@
-// Neon Bay's map: a street grid, the blocks between the streets, parks, and the
-// beach and water on the east edge. Everything the game places (mission
-// markers, parked cars, health packs) goes on a road, never inside a building.
-//
-// Roads are axis-aligned rectangles. A point is on a road when it lies inside
-// any of them. Buildings fill the blocks between roads, inset from the edges,
-// so every building sits clear of the road it faces.
+// The city of Neon Bay: a road grid, the buildings and parks between the roads, the beach and
+// the water on the east edge, and the helpers that keep everything on the roads — a point on the
+// nearest road, a random road point, collision with buildings and water, and a road-graph path
+// (breadth-first search over the intersections) so police follow streets, never cut through
+// buildings.
+import { BEACH_X, FIELD, ROADS, WATER_X } from './config.js';
+import { pick, range } from './random.js';
 
-import { CITY, ROAD_WIDTH } from './config.js';
-import { randomInt, randomPick } from './random.js';
+const BLOCK_MARGIN = 16;
+const PARK_CHANCE = 0.16;
 
-/** Centres of the north-south avenues. */
-export const AVENUES = [200, 700, 1200, 1700, 2200, 2700, 3100];
-/** Centres of the east-west streets. */
-export const STREETS = [200, 600, 1000, 1400, 1800, 2200];
-/** The sand starts here; the water starts 100 units further east. */
-export const BEACH_X = 3200;
-export const WATER_X = 3300;
-
-/**
- * Build the city once from a seeded random: road rectangles, buildings and
- * parks. The layout is fixed by the seed, so every session sees the same city.
- */
-export function createCity(random) {
-  const roads = [];
-  for (const x of AVENUES) roads.push({ x: x - ROAD_WIDTH / 2, y: 0, w: ROAD_WIDTH, h: CITY.height, vertical: true });
-  for (const y of STREETS) roads.push({ x: 0, y: y - ROAD_WIDTH / 2, w: CITY.width, h: ROAD_WIDTH, vertical: false });
-
-  const buildings = [];
-  const parks = [];
-  // Blocks run between neighbouring road centrelines. The last column before
-  // the beach is a narrow strip, so it stays open ground.
-  const colEdges = [0, ...AVENUES, BEACH_X];
-  const rowEdges = [0, ...STREETS, CITY.height];
-  for (let c = 0; c < colEdges.length - 1; c += 1) {
-    for (let r = 0; r < rowEdges.length - 1; r += 1) {
-      const x0 = colEdges[c] + ROAD_WIDTH / 2 + 12;
-      const x1 = colEdges[c + 1] - ROAD_WIDTH / 2 - 12;
-      const y0 = rowEdges[r] + ROAD_WIDTH / 2 + 12;
-      const y1 = rowEdges[r + 1] - ROAD_WIDTH / 2 - 12;
-      if (x1 - x0 < 90 || y1 - y0 < 90) continue;
-      // A few blocks are parks instead of buildings.
-      if (random() < 0.16) {
-        parks.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0, trees: [] });
-        const park = parks[parks.length - 1];
-        const treeCount = Math.floor((park.w * park.h) / 26000);
-        for (let i = 0; i < treeCount; i += 1) {
-          park.trees.push({ x: x0 + 20 + random() * (park.w - 40), y: y0 + 20 + random() * (park.h - 40) });
-        }
-        continue;
-      }
-      // One or two buildings per block, each inset from the block edges.
-      const count = random() < 0.55 ? 1 : 2;
-      for (let i = 0; i < count; i += 1) {
-        let bx;
-        let by;
-        let bw;
-        let bh;
-        if (count === 1) {
-          bw = (x1 - x0) * (0.55 + random() * 0.3);
-          bh = (y1 - y0) * (0.55 + random() * 0.3);
-          bx = x0 + (x1 - x0 - bw) / 2;
-          by = y0 + (y1 - y0 - bh) / 2;
-        } else if (i === 0) {
-          bw = (x1 - x0) * 0.42;
-          bh = (y1 - y0) * (0.6 + random() * 0.25);
-          bx = x0 + 6;
-          by = y0 + (y1 - y0 - bh) / 2;
-        } else {
-          bw = (x1 - x0) * 0.42;
-          bh = (y1 - y0) * (0.6 + random() * 0.25);
-          bx = x1 - bw - 6;
-          by = y0 + (y1 - y0 - bh) / 2;
-        }
-        buildings.push({
-          x: bx,
-          y: by,
-          w: bw,
-          h: bh,
-          color: randomPick(random, ['#7a6a8f', '#8f6a6a', '#6a8f7a', '#6a7a8f', '#8f8a6a', '#746a8f']),
-          windows: randomInt(random, 2, 5),
-        });
-      }
-    }
-  }
-
-  return { roads, buildings, parks };
-}
-
-/** Whether a point lies on any road. */
-export function isRoad(city, x, y) {
-  for (const road of city.roads) {
-    if (x >= road.x && x <= road.x + road.w && y >= road.y && y <= road.y + road.h) return true;
-  }
+/** True when (x, y) lies on a road (centre line ± half width). */
+export function isOnRoad(x, y) {
+  const half = ROADS.width / 2;
+  for (const vx of ROADS.vertical) if (Math.abs(x - vx) <= half) return true;
+  for (const hy of ROADS.horizontal) if (Math.abs(y - hy) <= half) return true;
   return false;
 }
 
-/** Whether a point is in the water (east edge). */
-export function isWater(x, y) {
-  return x >= WATER_X && y >= 0 && y <= CITY.height;
+/** The nearest point on the road network to (x, y). */
+export function nearestRoadPoint(x, y) {
+  let best = null;
+  let bestD = Infinity;
+  for (const vx of ROADS.vertical) {
+    const px = vx;
+    const py = Math.min(FIELD.height - 60, Math.max(60, y));
+    const d = Math.hypot(px - x, py - y);
+    if (d < bestD) { bestD = d; best = { x: px, y: py }; }
+  }
+  for (const hy of ROADS.horizontal) {
+    const px = Math.min(BEACH_X - 60, Math.max(60, x));
+    const py = hy;
+    const d = Math.hypot(px - x, py - y);
+    if (d < bestD) { bestD = d; best = { x: px, y: py }; }
+  }
+  return best;
 }
 
-/** Whether a point is on the sand (walkable, but no roads or buildings there). */
-export function isSand(x, y) {
-  return x >= BEACH_X && x < WATER_X;
+/** A random point on a road centre line. */
+export function randomRoadPoint(random) {
+  if (random() < 0.5) {
+    return { x: pick(random, ROADS.vertical), y: range(random, 120, FIELD.height - 120) };
+  }
+  return { x: range(random, 120, BEACH_X - 120), y: pick(random, ROADS.horizontal) };
 }
 
-function circleHitsRect(x, y, r, rect) {
-  const cx = Math.max(rect.x, Math.min(x, rect.x + rect.w));
-  const cy = Math.max(rect.y, Math.min(y, rect.y + rect.h));
-  const dx = x - cx;
-  const dy = y - cy;
-  return dx * dx + dy * dy < r * r;
+/** A road point between minD and maxD from (x, y), or the closest one found. */
+export function roadPointNear(x, y, minD, maxD, random) {
+  let fallback = nearestRoadPoint(x, y);
+  for (let tries = 0; tries < 14; tries += 1) {
+    const p = randomRoadPoint(random);
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d >= minD && d <= maxD) return p;
+    if (Math.abs(d - minD) < Math.abs(Math.hypot(fallback.x - x, fallback.y - y) - minD)) fallback = p;
+  }
+  return fallback;
+}
+
+/** All intersections, as {x, y} points on the grid. */
+export function intersections() {
+  const points = [];
+  for (const vx of ROADS.vertical) {
+    for (const hy of ROADS.horizontal) points.push({ x: vx, y: hy });
+  }
+  return points;
+}
+
+/** The intersection nearest to (x, y). */
+export function nearestIntersection(x, y) {
+  let best = null;
+  let bestD = Infinity;
+  for (const vx of ROADS.vertical) {
+    for (const hy of ROADS.horizontal) {
+      const d = Math.hypot(vx - x, hy - y);
+      if (d < bestD) { bestD = d; best = { x: vx, y: hy }; }
+    }
+  }
+  return best;
+}
+
+function nodeKey(x, y) {
+  return `${x},${y}`;
 }
 
 /**
- * Push a circle out of every building, the water and the city edge. Returns
- * the corrected position. Roads never block movement; only solid things do.
+ * The road-graph path from (fromX, fromY) to (toX, toY): a list of intersection waypoints,
+ * axis-aligned along the roads, found by breadth-first search. Empty when already there.
  */
+export function roadPath(fromX, fromY, toX, toY) {
+  const start = nearestIntersection(fromX, fromY);
+  const goal = nearestIntersection(toX, toY);
+  if (start.x === goal.x && start.y === goal.y) return [];
+  const queue = [start];
+  const cameFrom = new Map([[nodeKey(start.x, start.y), null]]);
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (node.x === goal.x && node.y === goal.y) break;
+    const neighbours = [];
+    const vi = ROADS.vertical.indexOf(node.x);
+    const hi = ROADS.horizontal.indexOf(node.y);
+    if (hi > 0) neighbours.push({ x: node.x, y: ROADS.horizontal[hi - 1] });
+    if (hi < ROADS.horizontal.length - 1) neighbours.push({ x: node.x, y: ROADS.horizontal[hi + 1] });
+    if (vi > 0) neighbours.push({ x: ROADS.vertical[vi - 1], y: node.y });
+    if (vi < ROADS.vertical.length - 1) neighbours.push({ x: ROADS.vertical[vi + 1], y: node.y });
+    for (const next of neighbours) {
+      const key = nodeKey(next.x, next.y);
+      if (!cameFrom.has(key)) {
+        cameFrom.set(key, node);
+        queue.push(next);
+      }
+    }
+  }
+  const path = [];
+  let node = goal;
+  let guard = 0;
+  while (node !== null && guard < 64) {
+    path.unshift({ x: node.x, y: node.y });
+    node = cameFrom.get(nodeKey(node.x, node.y)) ?? null;
+    guard += 1;
+  }
+  if (path.length > 0 && path[0].x === start.x && path[0].y === start.y) path.shift();
+  return path;
+}
+
+/** Build the static city: buildings and parks in the blocks between roads. */
+export function buildCity(random) {
+  const buildings = [];
+  const parks = [];
+  const half = ROADS.width / 2;
+  for (let vi = 0; vi < ROADS.vertical.length; vi += 1) {
+    const x0 = ROADS.vertical[vi] + half + BLOCK_MARGIN;
+    const x1 = vi + 1 < ROADS.vertical.length ? ROADS.vertical[vi + 1] - half - BLOCK_MARGIN : BEACH_X - BLOCK_MARGIN;
+    if (x1 - x0 < 90) continue;
+    for (let hi = 0; hi < ROADS.horizontal.length; hi += 1) {
+      const y0 = ROADS.horizontal[hi] + half + BLOCK_MARGIN;
+      const y1 = hi + 1 < ROADS.horizontal.length ? ROADS.horizontal[hi + 1] - half - BLOCK_MARGIN : FIELD.height - BLOCK_MARGIN;
+      if (y1 - y0 < 90) continue;
+      if (random() < PARK_CHANCE) {
+        const trees = [];
+        const count = 3 + Math.floor(random() * 4);
+        for (let t = 0; t < count; t += 1) {
+          trees.push({ x: range(random, x0 + 20, x1 - 20), y: range(random, y0 + 20, y1 - 20), r: 12 + random() * 10 });
+        }
+        parks.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0, trees });
+        continue;
+      }
+      const split = random();
+      if (split < 0.45) {
+        buildings.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0, shade: random() });
+      } else if (split < 0.8) {
+        const midX = x0 + (x1 - x0) * (0.42 + random() * 0.16);
+        buildings.push({ x: x0, y: y0, w: midX - x0 - 10, h: y1 - y0, shade: random() });
+        buildings.push({ x: midX + 10, y: y0, w: x1 - midX - 10, h: y1 - y0, shade: random() });
+      } else {
+        const midX = x0 + (x1 - x0) * (0.42 + random() * 0.16);
+        const midY = y0 + (y1 - y0) * (0.42 + random() * 0.16);
+        buildings.push({ x: x0, y: y0, w: midX - x0 - 10, h: midY - y0 - 10, shade: random() });
+        buildings.push({ x: midX + 10, y: y0, w: x1 - midX - 10, h: midY - y0 - 10, shade: random() });
+        buildings.push({ x: x0, y: midY + 10, w: midX - x0 - 10, h: y1 - midY - 10, shade: random() });
+        buildings.push({ x: midX + 10, y: midY + 10, w: x1 - midX - 10, h: y1 - midY - 10, shade: random() });
+      }
+    }
+  }
+  return { buildings, parks };
+}
+
+/** Push a circle (x, y, r) out of every building and out of the water; returns the fixed point. */
 export function resolveCircle(city, x, y, r) {
-  let px = x;
-  let py = y;
+  let px = Math.min(FIELD.width - r, Math.max(r, x));
+  let py = Math.min(FIELD.height - r, Math.max(r, y));
+  if (px > WATER_X - r) px = WATER_X - r;
   for (const b of city.buildings) {
-    if (!circleHitsRect(px, py, r, b)) continue;
-    const cx = Math.max(b.x, Math.min(px, b.x + b.w));
-    const cy = Math.max(b.y, Math.min(py, b.y + b.h));
-    let dx = px - cx;
-    let dy = py - cy;
-    if (dx === 0 && dy === 0) {
-      // Centre inside the building: push out through the nearest side.
+    const nearestX = Math.min(b.x + b.w, Math.max(b.x, px));
+    const nearestY = Math.min(b.y + b.h, Math.max(b.y, py));
+    const dx = px - nearestX;
+    const dy = py - nearestY;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= r * r) continue;
+    if (d2 === 0) {
+      // Centre inside the building: push out along the shortest side.
       const left = px - b.x;
       const right = b.x + b.w - px;
       const top = py - b.y;
@@ -137,97 +187,22 @@ export function resolveCircle(city, x, y, r) {
       else if (m === right) px = b.x + b.w + r;
       else if (m === top) py = b.y - r;
       else py = b.y + b.h + r;
-      continue;
+    } else {
+      const d = Math.sqrt(d2);
+      px = nearestX + (dx / d) * r;
+      py = nearestY + (dy / d) * r;
     }
-    const len = Math.hypot(dx, dy);
-    dx /= len;
-    dy /= len;
-    px = cx + dx * r;
-    py = cy + dy * r;
   }
-  // The water is solid; the sand is not.
-  if (px >= WATER_X - r) px = WATER_X - r;
-  if (px < r) px = r;
-  if (px > CITY.width - r) px = CITY.width - r;
-  if (py < r) py = r;
-  if (py > CITY.height - r) py = CITY.height - r;
   return { x: px, y: py };
 }
 
-/** A random point on a road centreline (avenue or street). */
-export function randomRoadPoint(random) {
-  if (random() < 0.5) {
-    const x = randomPick(random, AVENUES);
-    return { x, y: 80 + random() * (CITY.height - 160) };
+/** True when a circle at (x, y, r) overlaps a building or the water. */
+export function hitsObstacle(city, x, y, r) {
+  if (x > WATER_X - r) return true;
+  for (const b of city.buildings) {
+    const nearestX = Math.min(b.x + b.w, Math.max(b.x, x));
+    const nearestY = Math.min(b.y + b.h, Math.max(b.y, y));
+    if ((x - nearestX) ** 2 + (y - nearestY) ** 2 < r * r) return true;
   }
-  const y = randomPick(random, STREETS);
-  return { x: 80 + random() * (BEACH_X - 160), y };
-}
-
-/** The nearest point on a road centreline to (x, y). */
-export function nearestRoadPoint(x, y) {
-  let best = null;
-  let bestD = Infinity;
-  for (const ax of AVENUES) {
-    const d = Math.abs(x - ax);
-    if (d < bestD) {
-      bestD = d;
-      best = { x: ax, y: Math.max(80, Math.min(CITY.height - 80, y)) };
-    }
-  }
-  for (const sy of STREETS) {
-    const d = Math.abs(y - sy);
-    if (d < bestD) {
-      bestD = d;
-      best = { x: Math.max(80, Math.min(BEACH_X - 80, x)), y: sy };
-    }
-  }
-  return best;
-}
-
-/**
- * The headings (radians, 0 = east, -PI/2 = north) that keep a driver on a
- * road from (x, y): a heading counts when the point 46 units ahead is on a
- * road. Used by traffic and police so they never cut through buildings.
- */
-export function roadHeadings(city, x, y) {
-  const out = [];
-  const dirs = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
-  for (const d of dirs) {
-    if (isRoad(city, x + Math.cos(d) * 46, y + Math.sin(d) * 46)) out.push(d);
-  }
-  return out;
-}
-
-/**
- * Pick a road heading from (x, y) that turns toward (tx, ty). At an
- * intersection this chooses the road leading closest to the target; on a
- * straight road it keeps the current heading. Falls back to the heading
- * toward the target when no road heading exists.
- */
-export function chooseRoadHeading(city, x, y, heading, tx, ty) {
-  const options = roadHeadings(city, x, y);
-  if (options.length === 0) return Math.atan2(ty - y, tx - x);
-  let best = options[0];
-  let bestScore = -Infinity;
-  for (const d of options) {
-    // Prefer the road that points at the target, with a small bonus for
-    // keeping the current heading so cars do not jitter at intersections.
-    const dot = Math.cos(d) * (tx - x) + Math.sin(d) * (ty - y);
-    const keep = Math.cos(d - heading);
-    const score = dot + keep * 60;
-    if (score > bestScore) {
-      bestScore = score;
-      best = d;
-    }
-  }
-  return best;
-}
-
-/** The smallest signed turn from heading `from` to heading `to`. */
-export function angleDiff(from, to) {
-  let d = to - from;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
+  return false;
 }
