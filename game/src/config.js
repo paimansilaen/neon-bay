@@ -1,103 +1,88 @@
-// NEON BAY — an original open-world crime game. All names, characters, places and
-// story are invented for this entry; nothing here comes from any commercial game.
-export const SAVE_KEY = 'neonbay-save-v1';
+// Neon Bay: every tuning number and colour in one place.
+// The city is 3400x2600 world units; the camera follows the player, so no
+// rule below depends on the screen size.
+
+export const CITY = { width: 3400, height: 2600 };
+export const ROAD_WIDTH = 120;
+
+/** The simulation's fixed step, in seconds: 60 updates a second whatever the display rate. */
 export const STEP = 1 / 60;
 
-export const WORLD = {
-  width: 3400,
-  height: 2600,
-  roadWidth: 72,
-  block: 340, // road centre lines are this far apart
-  beachX: 3180, // east of this is sand, then water
-  waterX: 3300,
-};
-
-export const CAR_TYPES = {
-  sedan: { name: 'Sedan', top: 150, accel: 260, brake: 420, max: 330, turn: 2.6, color: '#4a7ec2', color2: '#355c8f' },
-  taxi: { name: 'Taxi', top: 165, accel: 270, brake: 430, max: 350, turn: 2.7, color: '#e8b820', color2: '#b98f0a' },
-  truck: { name: 'Truck', top: 120, accel: 180, brake: 380, max: 260, turn: 1.9, color: '#7a6a55', color2: '#5d5040' },
-  sports: { name: 'Sports', top: 210, accel: 360, brake: 480, max: 460, turn: 3.1, color: '#c23b4a', color2: '#8f2430' },
-  cop: { name: 'Patrol', top: 180, accel: 320, brake: 500, max: 400, turn: 3.0, color: '#1c1e26', color2: '#f2f2f2' },
-};
+/** Where the save lives between visits (this browser only). */
+export const SAVE_KEY = 'neon-bay.save.v1';
 
 export const PLAYER = {
-  walkSpeed: 190,
-  runSpeed: 260,
   radius: 14,
+  walkSpeed: 175,
+  runSpeed: 285,
   health: 100,
-  pistolAmmo: 24,
-  punchDamage: 12,
-  bulletDamage: 34,
+  pistolAmmo: 12,
+  reloadSeconds: 1.2,
+  punchRange: 46,
+  punchDamage: 1,
 };
 
+export const CAR = {
+  // px/s^2 acceleration, top speed px/s, steering radians/s at full lock.
+  sedan: { accel: 420, top: 430, reverse: 150, steer: 2.6, color: '#5b8dd9', name: 'Sedan' },
+  taxi: { accel: 400, top: 410, reverse: 150, steer: 2.6, color: '#f2c94c', name: 'Taxi' },
+  truck: { accel: 260, top: 330, reverse: 120, steer: 2.0, color: '#7d8a99', name: 'Truck' },
+  sports: { accel: 620, top: 560, reverse: 170, steer: 3.1, color: '#e5484d', name: 'Comet GT' },
+  police: { accel: 520, top: 500, reverse: 160, steer: 3.0, color: '#2f3542', name: 'Police' },
+};
+
+export const TRAFFIC_SPEED = 150;
+export const COP_SPEED = 300;
+export const COP_SPAWN_DISTANCE = 520;
+export const COP_ARREST_DISTANCE = 34;
+export const COP_ARREST_SECONDS = 0.8;
+export const COP_NEAR_DISTANCE = 520;
+export const HEAT_DECAY_PER_SECOND = 0.12;
+export const MAX_WANTED = 5;
+
+export const BULLET_SPEED = 720;
+export const BULLET_LIFE = 0.9;
+
+export const THUG_HEALTH = 3;
+export const THUG_SHOT_INTERVAL = 1.9;
+
 export const MISSIONS = [
-  {
-    id: 'm1',
-    title: 'First Delivery',
-    reward: 300,
-    timeLimit: 100,
-    brief: [
-      'MARA: Jax, the crew needs a courier who can actually drive.',
-      'MARA: Take this package from the Dockside to the Neon Diner. Fast. No questions.',
-    ],
-    steps: [
-      { type: 'goto', label: 'Pick up the package at the Dockside', x: 210, y: 210, radius: 70 },
-      { type: 'goto', label: 'Deliver to the Neon Diner', x: 2890, y: 2130, radius: 70 },
-    ],
-  },
-  {
-    id: 'm2',
-    title: 'Hot Wheels',
-    reward: 500,
-    timeLimit: 120,
-    brief: [
-      'MARA: The crew needs a Comet GT — red, parked by the marina.',
-      'MARA: Steal it and bring it to the garage on Palm Row. Cops will notice. Obviously.',
-    ],
-    steps: [
-      { type: 'steal', label: 'Steal the red Comet GT at the marina', x: 3050, y: 700, radius: 90 },
-      { type: 'deliverCar', label: 'Deliver the Comet GT to the garage', x: 760, y: 1790, radius: 80 },
-    ],
-  },
-  {
-    id: 'm3',
-    title: 'Cash Run',
-    reward: 700,
-    timeLimit: 150,
-    brief: [
-      'MARA: Five cash drops are stashed around Neon Bay. Collect them all.',
-      'MARA: Word is the rival Dockside crew is out tonight. Keep your pistol handy.',
-    ],
-    steps: [
-      { type: 'collect', label: 'Collect the cash drops (0/5)', count: 5, radius: 60 },
-    ],
-  },
-  {
-    id: 'm4',
-    title: 'Lose the Heat',
-    reward: 900,
-    timeLimit: 75,
-    brief: [
-      'MARA: You tripped every alarm in the district. Three stars, Jax.',
-      'MARA: Survive 60 seconds, then reach the hideout under the rail bridge.',
-    ],
-    steps: [
-      { type: 'survive', label: 'Survive the heat — stay alive 60s', seconds: 60 },
-      { type: 'goto', label: 'Reach the hideout', x: 1240, y: 1240, radius: 80 },
-    ],
-  },
-  {
-    id: 'm5',
-    title: 'The Big Score',
-    reward: 1500,
-    timeLimit: 150,
-    brief: [
-      'MARA: One last job. The Bay Tower vault courier is leaving at dawn.',
-      'MARA: Grab the case, lose the cops, and bring it home. Then we are done.',
-    ],
-    steps: [
-      { type: 'goto', label: 'Grab the case at Bay Tower', x: 2210, y: 890, radius: 70 },
-      { type: 'goto', label: 'Bring the case to the hideout', x: 1240, y: 1240, radius: 80 },
-    ],
-  },
+  { name: 'First Delivery', pay: 300, hint: 'Reach the yellow marker to drop the package.' },
+  { name: 'Hot Wheels', pay: 500, hint: 'Steal the red Comet GT parked on the street.' },
+  { name: 'Cash Run', pay: 700, hint: 'Grab all 5 cash drops. The crew shoots back.' },
+  { name: 'Lose the Heat', pay: 900, hint: 'Survive 60 seconds at 3 stars.' },
+  { name: 'The Big Score', pay: 1500, hint: 'Hit the bank, then reach the getaway marker.' },
 ];
+
+/** Seconds of day in one full day/night cycle. */
+export const DAY_LENGTH = 240;
+
+export const PALETTE = {
+  ground: '#3a3f46',
+  sidewalk: '#565c66',
+  road: '#23262c',
+  roadLine: '#c8b45a',
+  park: '#2e6b34',
+  parkDark: '#25592b',
+  sand: '#d9c48a',
+  water: '#1d6f9e',
+  waterDeep: '#155a82',
+  buildingRoof: ['#7a6a8f', '#8f6a6a', '#6a8f7a', '#6a7a8f', '#8f8a6a', '#746a8f'],
+  buildingEdge: '#20242b',
+  player: '#ff8c1a',
+  playerDark: '#c96a00',
+  ped: ['#e8e8e8', '#9ecfff', '#ffb3c1', '#b5e6a2', '#ffd9a0'],
+  thug: '#c22730',
+  cop: '#2f3542',
+  copLight: '#ff3b30',
+  copLight2: '#2f7bff',
+  cash: '#37d67a',
+  health: '#37d67a',
+  bullet: '#ffe14d',
+  text: '#f2f4f6',
+  muted: '#aab2bd',
+  gold: '#f2c94c',
+  panel: 'rgba(12, 14, 18, 0.72)',
+};
+
+export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';

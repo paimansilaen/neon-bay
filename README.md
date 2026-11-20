@@ -1,82 +1,59 @@
-[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![rank](https://make.fun/badge/gta6-01/paimansilaen/neon-bay/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/paimansilaen/neon-bay/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![Make GTA 6](https://make.fun/badges/paimansilaen/neon-bay/gta6-01.svg)](https://make.fun/bounty/gta6-01)
+[![Rank](https://make.fun/badges/paimansilaen/neon-bay/rank.svg)](https://make.fun/leaderboard/gta6-01)
+[![Reward](https://make.fun/badges/paimansilaen/neon-bay/reward.svg)](https://make.fun/leaderboard/gta6-01)
 
-# NEON BAY — an open-world crime game
+# Neon Bay — Make GTA 6
 
-An original top-down open-world crime game built for the make.fun **"Make GTA 6"**
-bounty ([gta6-01](https://make.fun/bounty/gta6-01)). Playable in a desktop browser from static files, no network
-requests, keyboard + mouse. **Every name, character, place, story beat, piece of
-art and sound is original work created for this entry — nothing comes from
-Rockstar Games or any commercial game.**
+An original top-down 2D open-world crime game for the [gta6-01 bounty](https://make.fun/bounty/gta6-01). Nothing here comes from Rockstar Games: the city, the characters, the vehicles, the story, the art, the sound and the music are all invented for this entry.
 
-## Story
+## The story
 
-Jax Marlowe came to Neon Bay to drive a delivery van. One package later, Mara
-Voss and her crew own his evenings. Five jobs, one city, every street yours —
-on foot or behind the wheel.
+Jax Marlowe came to Neon Bay to deliver one package. Mara Voss, who runs the crew that owns the docks, has other plans. Five jobs stand between Jax and a way out:
 
-## What is in the game
+1. **First Delivery** — $300. Reach the marker and drop the package.
+2. **Hot Wheels** — $500. Steal the red Comet GT parked on the street.
+3. **Cash Run** — $700. Grab all 5 cash drops while rival thugs shoot back.
+4. **Lose the Heat** — $900. Survive 60 seconds at 3 wanted stars.
+5. **The Big Score** — $1500. Hit the bank, then reach the getaway marker.
 
-- **A city on foot and by car** — Neon Bay: a road grid with blocks, buildings,
-  parks, parking lots and a beach on the east edge, with a day/night cycle.
-- **Traffic and pedestrians** — cars drive the streets and turn at intersections;
-  pedestrians walk the sidewalks and flee from speeding cars and gunfire.
-- **Cars to steal** — walk up to a parked or traffic car and press **E** to get in
-  (stealing a driven car raises your wanted level). Sedans, taxis, trucks and
-  sports cars all drive differently. **E** again to get out.
-- **Wanted level (1–5 stars) + police** — stealing, hitting pedestrians and
-  shooting raise the heat; patrol cars chase, ram and try to arrest you. Hide
-  long enough and the stars drop. Get caught and it's **BUSTED**.
-- **Missions + story** — five missions with briefings, markers, dialogue and
-  timers: *First Delivery*, *Hot Wheels* (steal a Comet GT), *Cash Run*,
-  *Lose the Heat* and *The Big Score*. Press **M** to start the next one.
-- **Combat** — pistol (mouse aim, click to shoot, **R** to reload) and punching
-  (**F**). Rival crew members shoot back; health and ammo pickups are stashed
-  around the city.
-- **HUD with minimap** — cash, health, wanted stars, ammo, speed, mission
-  objective with distance and timer, and a live minimap (player, traffic,
-  police, mission marker).
-- **Start, pause and save** — title screen with the story intro, pause with **P**,
-  progress (cash, missions, position) saved to localStorage and continued
-  with Enter.
-- **Polish** — synthesized WebAudio sound effects and a procedural bassline
-  music loop (no audio files), particles, skid marks, screen shake, day/night
-  tint and street lamps.
+## The city
+
+Neon Bay is 3400×2600 units of street grid, buildings, sidewalks, parks, and a beach with water on the east edge. The sun rises and sets on a four-minute day/night cycle. Traffic drives the roads, pedestrians walk the sidewalks and flee from danger, and the Neon Bay PD chases you down the streets when the heat is on.
+
+## Systems
+
+- **Driving** — four stealable car types (sedan, taxi, truck, sports) with acceleration, steering, handbrake drifts and skid marks. Stealing a driven car raises your wanted level.
+- **Wanted 1–5 stars** — police chase, ram and arrest. Heat cools only while no cop is near, so hiding is the way out.
+- **Combat** — pistol with mouse aim, F to punch, R to reload, health packs on the streets.
+- **HUD and minimap** — money, missions, health, ammo, wanted stars, and a live minimap with the mission marker and police dots.
+- **Save** — money, missions and health persist in localStorage between visits.
+- **Sound** — synthesized WebAudio effects and a procedural music loop. No audio files.
 
 ## Controls
 
-| Key | Action |
-| --- | --- |
-| WASD / arrows | Move on foot / drive (W accelerate, S brake/reverse, A/D steer) |
-| Mouse | Aim (click to shoot) |
-| E | Enter / exit car |
-| F | Punch |
-| R | Reload |
-| M | Start next mission |
-| Shift | Run on foot |
-| Space | Handbrake while driving |
-| P / Esc | Pause |
+WASD move · Shift run · E enter / exit car · Space handbrake · Mouse aim · Click shoot · F punch · R reload · M start mission · P pause · Enter confirm
 
-## Play
+## Play it
 
 ```sh
 node serve.ts
 # open http://localhost:8080
 ```
 
-Deterministic screenshot scenes: `?shot=start|play|chase|mission&seed=1`
-(see `shots.json`).
+Deterministic screenshots: `?shot=start|play|chase|mission&seed=1`.
 
-## Build
+## Files
 
-```sh
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-```
-
-`main.ts` (Node 22, stdlib only) copies `game/` and `screenshots/` to the
-output directory and writes `dossier.json` via `vendor/makefun-game.ts`.
-
-## License
-
-MIT — see `LICENSE`.
+- `game/index.html` — the page
+- `game/src/config.js` — tuning numbers and colours
+- `game/src/random.js` — seeded random
+- `game/src/city.js` — the map: roads, buildings, parks, beach
+- `game/src/input.js` — keyboard and mouse
+- `game/src/world.js` — the rules: cars, police, missions, wanted
+- `game/src/render.js` — the camera, the city, the HUD, the minimap
+- `game/src/audio.js` — synthesized sound and music
+- `game/src/shots.js` — the deterministic screenshot scenes
+- `game/src/main.js` — boot, loop, screens, save
+- `main.ts` — hands the game in (copies `game/` and `screenshots/`, verifies the copy, writes the dossier)
+- `serve.ts` — local static server on port 8080
+- `shots.json` — the four screenshot scenes
